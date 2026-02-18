@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioSync Dashboard (Public)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF Generation Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Modal Animation */
+        #pdf-modal { transition: all 0.3s ease; }
+        #pdf-modal.hidden { opacity: 0; pointer-events: none; }
+        #pdf-modal:not(.hidden) { opacity: 1; pointer-events: auto; }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen p-4 md:p-8 relative">
+
+    <!-- MAIN DASHBOARD -->
+    <div id="dashboard-content">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+                    <i class="fa-solid fa-heart-pulse mr-2"></i>BioSync <span class="text-xs text-slate-500 font-mono">LIVE</span>
+                </h1>
+                <p class="text-slate-400 text-sm">Status: <span id="connection-status" class="text-yellow-400 font-mono">Connecting...</span></p>
+            </div>
+            <div class="flex gap-3">
+                <!-- PDF Button -->
+                <button onclick="window.openPdfModal()" class="bg-red-600 hover:bg-red-700 text-white p-2 px-4 rounded-lg transition flex items-center gap-2">
+                    <i class="fa-solid fa-file-pdf"></i> <span class="hidden md:inline">Report</span>
+                </button>
+                <!-- Refresh Button -->
+                <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition">
+                    <i class="fa-solid fa-sync"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            
+            <!-- 1. Body Temp -->
+            <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group hover:border-red-500/50 transition border border-transparent">
+                <div class="absolute -right-4 -top-4 text-8xl text-red-500/10 group-hover:text-red-500/20 transition">
+                    <i class="fa-solid fa-temperature-half"></i>
+                </div>
+                <h3 class="text-slate-400 font-semibold mb-2">Body Temp</h3>
+                <div class="flex items-baseline gap-2">
+                    <span id="body-temp-val" class="text-5xl font-bold text-white">--</span>
+                    <span class="text-sm text-red-400">°C</span>
+                </div>
+                <p id="body-temp-status" class="text-xs mt-2 text-slate-500">Scanning...</p>
+            </div>
+
+            <!-- 2. Daily Steps -->
+            <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group hover:border-cyan-500/50 transition border border-transparent">
+                <div class="absolute -right-4 -top-4 text-8xl text-cyan-500/10 group-hover:text-cyan-500/20 transition">
+                    <i class="fa-solid fa-person-walking"></i>
+                </div>
+                <h3 class="text-slate-400 font-semibold mb-2">Daily Steps</h3>
+                <div class="flex items-baseline gap-2">
+                    <span id="steps-val" class="text-4xl font-bold text-white">--</span>
+                    <span class="text-sm text-cyan-400">steps</span>
+                </div>
+                <div class="w-full bg-slate-700 h-2 mt-4 rounded-full overflow-hidden">
+                    <div id="steps-bar" class="bg-cyan-500 h-full w-0 transition-all duration-1000"></div>
+                </div>
+            </div>
+
+            <!-- 3. Blood Pressure -->
+            <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group hover:border-pink-500/50 transition border border-transparent">
+                <div class="absolute -right-4 -top-4 text-8xl text-pink-500/10 group-hover:text-pink-500/20 transition">
+                    <i class="fa-solid fa-heart-crack"></i>
+                </div>
+                <h3 class="text-slate-400 font-semibold mb-2">Blood Pressure</h3>
+                <div class="flex items-baseline gap-2">
+                    <span id="bp-val" class="text-4xl font-bold text-white">--/--</span>
+                    <span class="text-sm text-pink-400">mmHg</span>
+                </div>
+                <p class="text-xs mt-2 text-slate-500">Systolic / Diastolic</p>
+            </div>
+
+            <!-- 4. Environment -->
+            <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group hover:border-yellow-500/50 transition border border-transparent">
+                <div class="absolute -right-4 -top-4 text-8xl text-yellow-500/10 group-hover:text-yellow-500/20 transition">
+                    <i class="fa-solid fa-house-chimney"></i>
+                </div>
+                <h3 class="text-slate-400 font-semibold mb-2">Environment</h3>
+                <div class="flex items-baseline gap-2">
+                    <span id="room-in-val" class="text-4xl font-bold text-white">--</span>
+                    <span class="text-sm text-yellow-400">°C</span>
+                </div>
+                 <p class="text-xs mt-2 text-slate-500">Indoor Temp</p>
+            </div>
+        </main>
+
+        <!-- AI Analysis -->
+        <section class="glass-panel rounded-2xl p-6 md:p-8">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                <i class="fa-solid fa-file-medical text-green-400 mr-2"></i> 
+                Live System Diagnosis
+            </h2>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <div class="mt-2">
+                    <p class="text-xs text-slate-500 uppercase tracking-widest mb-1">AI Recommendation:</p>
+                    <p id="ai-suggestion" class="text-green-400 font-medium italic">"Waiting for sensor stream..."</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- PDF INPUT MODAL -->
+    <div id="pdf-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm">
+        <div class="glass-panel p-8 rounded-2xl w-full max-w-md shadow-2xl border border-red-500/30">
+            <h2 class="text-2xl font-bold mb-4 flex items-center text-white">
+                <i class="fa-solid fa-file-prescription text-red-500 mr-3"></i> Generate Report
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Patient Name</label>
+                    <input id="p-name" type="text" placeholder="e.g. Ibrahim" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-red-500 outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Age</label>
+                    <input id="p-age" type="number" placeholder="22" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-red-500 outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Address</label>
+                    <input id="p-address" type="text" placeholder="Dhaka, Bangladesh" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:border-red-500 outline-none transition">
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-8">
+                <button onclick="window.closePdfModal()" class="text-slate-400 hover:text-white transition">Cancel</button>
+                <button onclick="window.generatePDF()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-red-500/20 transition flex items-center gap-2">
+                    <i class="fa-solid fa-download"></i> Download PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE MODULES (NO AUTH REQUIRED) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+        let db;
+        
+        // --- 1. CONFIGURATION ---
+        const RTDB_URL = "https://health-monitor-ed5e5-default-rtdb.asia-southeast1.firebasedatabase.app/";
+        let firebaseConfig;
+        
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+                firebaseConfig.databaseURL = RTDB_URL; 
+            } else {
+                firebaseConfig = {
+                    apiKey: "YOUR_API_KEY_IF_LOCAL", 
+                    databaseURL: RTDB_URL
+                };
+            }
+        } catch (e) {
+            console.warn("Config issues. Assuming public read access anyway.");
+            firebaseConfig = { databaseURL: RTDB_URL };
+        }
+
+        // --- 2. INITIALIZATION ---
+        function initApp() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getDatabase(app);
+                setupRealtimeListener();
+            } catch (error) {
+                console.error("Init Error:", error);
+                document.getElementById('connection-status').innerText = "INIT FAILED";
+                document.getElementById('connection-status').className = "text-red-400 font-bold";
+            }
+        }
+
+        // --- 3. DATA LOGIC (ROOT READ) ---
+        function setupRealtimeListener() {
+            const statusEl = document.getElementById('connection-status');
+            const dataRef = ref(db, '/'); 
+
+            console.log(`Listening to root path: ${RTDB_URL}`);
+
+            onValue(dataRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    statusEl.innerText = "ONLINE";
+                    statusEl.className = "text-green-400 font-bold";
+                    updateUI(data);
+                } else {
+                    statusEl.innerText = "WAITING FOR DATA";
+                    statusEl.className = "text-yellow-400 font-bold";
+                }
+            }, (error) => {
+                console.error("RTDB Read Error:", error);
+                statusEl.innerText = "PERMISSION DENIED";
+                statusEl.className = "text-red-400 font-bold";
+                document.getElementById('ai-suggestion').innerHTML = `<span class="text-red-400 font-bold">Error:</span> Database Permission Denied.`;
+            });
+        }
+
+        // --- 4. UI HELPERS ---
+        function updateUI(data) {
+            const bodyTemp = parseFloat(data.body_temp) || 0;
+            const steps = parseInt(data.daily_step) || 0;
+            const bp = data.blood_pressure || "--/--";
+            
+            let envTemp = "--";
+            if (data.enviroment) {
+                 // Check if it's an object or value, handling inconsistent formats
+                 envTemp = (typeof data.enviroment === 'object') ? (data.enviroment.indoor || data.enviroment.value) : data.enviroment;
+            }
+
+            // Update DOM
+            document.getElementById('body-temp-val').innerText = bodyTemp.toFixed(1);
+            const tempStatus = document.getElementById('body-temp-status');
+            if (bodyTemp > 37.5) {
+                tempStatus.innerText = "Status: FEVER";
+                tempStatus.className = "text-xs mt-2 text-red-500 font-bold animate-pulse";
+            } else {
+                tempStatus.innerText = "Status: Normal";
+                tempStatus.className = "text-xs mt-2 text-green-500 font-bold";
+            }
+
+            document.getElementById('steps-val').innerText = steps;
+            document.getElementById('steps-bar').style.width = Math.min((steps / 10000) * 100, 100) + '%';
+            document.getElementById('bp-val').innerText = bp;
+            document.getElementById('room-in-val').innerText = envTemp;
+
+            // AI Suggestion
+            let suggestion = "Systems optimal.";
+            if (bodyTemp > 38) suggestion = "Alert: User is overheating. Cooling required.";
+            else if (steps < 1000) suggestion = "User is sedentary. Suggesting: Touching grass.";
+            else if (steps > 10000) suggestion = "Step goal met. You are basically a marathon runner.";
+            else if (bodyTemp < 35 && bodyTemp > 1) suggestion = "Hypothermia risk. Is the AC broken?";
+            
+            document.getElementById('ai-suggestion').innerText = `"${suggestion}"`;
+        }
+
+        // --- 5. PDF GENERATION LOGIC ---
+        
+        // Expose functions to window so HTML buttons can see them
+        window.openPdfModal = () => document.getElementById('pdf-modal').classList.remove('hidden');
+        window.closePdfModal = () => document.getElementById('pdf-modal').classList.add('hidden');
+        
+        window.generatePDF = () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Get User Inputs
+            const name = document.getElementById('p-name').value || "Anonymous Patient";
+            const age = document.getElementById('p-age').value || "N/A";
+            const address = document.getElementById('p-address').value || "N/A";
+            
+            // Get Current Dashboard Values
+            const temp = document.getElementById('body-temp-val').innerText;
+            const steps = document.getElementById('steps-val').innerText;
+            const bp = document.getElementById('bp-val').innerText;
+            const room = document.getElementById('room-in-val').innerText;
+            const timestamp = new Date().toLocaleString();
+
+            // --- PDF STYLING ---
+            
+            // Header Background
+            doc.setFillColor(30, 41, 59); // Dark blue background
+            doc.rect(0, 0, 210, 45, 'F');
+            doc.setTextColor(255, 255, 255);
+
+            // Doctor's Info (Top Left)
+            doc.setFontSize(16);
+            doc.setFont("helvetica", "bold");
+            doc.text("Dr. Sumaiatul Jannat", 15, 18);
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.text("Narayangonj, Dhaka", 15, 25);
+            doc.setFontSize(9);
+            doc.setTextColor(200, 200, 200);
+            doc.text("MBBS, FCPS (Medicine)", 15, 30); // Added a fake credential for flair
+
+            // System Title (Top Right)
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(18);
+            doc.setFont("helvetica", "bold");
+            doc.text("BioSync Medical Report", 195, 18, { align: "right" });
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Generated: ${timestamp}`, 195, 25, { align: "right" });
+
+            // Patient Info
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(14);
+            doc.text("Patient Information", 15, 60);
+            doc.setLineWidth(0.5);
+            doc.line(15, 62, 195, 62);
+            
+            doc.setFontSize(12);
+            doc.text(`Name: ${name}`, 20, 75);
+            doc.text(`Age: ${age}`, 20, 85);
+            doc.text(`Address: ${address}`, 20, 95);
+
+            // Vitals
+            doc.setFontSize(14);
+            doc.text("Live Vitals Data", 15, 115);
+            doc.line(15, 117, 195, 117);
+
+            // Simple Table-like structure
+            let y = 130;
+            const addRow = (label, value, unit) => {
+                doc.setFont("helvetica", "bold");
+                doc.text(label, 20, y);
+                doc.setFont("helvetica", "normal");
+                doc.text(`${value} ${unit}`, 100, y);
+                y += 15;
+            };
+
+            addRow("Body Temperature:", temp, "C");
+            addRow("Blood Pressure:", bp, "mmHg");
+            addRow("Daily Steps:", steps, "steps");
+            addRow("Room Temperature:", room, "C");
+
+            // Footer
+            doc.setFontSize(10);
+            doc.setTextColor(150);
+            doc.text("This report was generated automatically by BioSync IoT System.", 15, 280);
+
+            // Download
+            doc.save(`${name.replace(/\s+/g, '_')}_BioSync_Report.pdf`);
+            window.closePdfModal();
+        };
+
+        // Initialize App
+        initApp();
+    </script>
+</body>
+</html>
